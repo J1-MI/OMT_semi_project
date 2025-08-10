@@ -1,0 +1,69 @@
+# =========================================
+# Python & 환경 설정
+# =========================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# 가상환경 (Anaconda, venv)
+venv/
+env/
+.venv/
+.conda/
+*.conda
+*.env
+*.venv
+*.idea
+*.vscode
+
+# Jupyter Notebook 체크포인트
+.ipynb_checkpoints
+
+# =========================================
+# 데이터 & 로그
+# =========================================
+*.log
+logs/
+*.csv
+*.tsv
+*.json
+*.sqlite
+*.db
+*.db-journal
+
+# 민감한 설정 파일 (API Key 등)
+config.yaml
+config.yml
+config.json
+*.secret
+*.key
+*.pem
+*.crt
+
+# =========================================
+# 크롤링 결과 / 데이터셋
+# =========================================
+data/
+dataset/
+datasets/
+output/
+outputs/
+crawl_results/
+scraped/
+downloaded_files/
+
+# =========================================
+# OS 생성 파일
+# =========================================
+.DS_Store
+Thumbs.db
+
+# =========================================
+# IDE / 개발환경 파일
+# =========================================
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+.idea/
