@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Quick Detect",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/connect/crawler/quick_detect.py",
+      "cwd": "${workspaceFolder}",
+      "args": ["--in","out/crawl_20250811_011758.jsonl","--out","out/alerts.jsonl"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

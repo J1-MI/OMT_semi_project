@@ -1,0 +1,49 @@
+darkforums:
+  list_urls:
+    - "https://darkforums.st/Forum-Web-application-vulnerabilities"
+
+  thread_link:
+    - '#container a[href*="/Thread-"]'
+    - 'a[href^="https://darkforums.st/Thread-"]'
+
+  thread_title:
+    - '#thread-info .thread-info__name strong'
+    - '#thread-info .thread-info__name'
+    - 'h1'
+
+  post_container:
+    - 'div.post'
+    - 'div[id^="post_"]'
+    - 'article.message'
+
+  post_permalink:
+    - '.post_head a[href*="#pid"]'
+    - '.post_head a[href*="?pid="]'
+
+  author:
+    - '.post_author .post_user-profile .memrpc'
+    - '.post_author .post_user-profile a'
+    - '.message-userDetails a'
+
+  posted_time:
+    - '.post_content .post_head .post_date'
+    - '.thread-info__datetime'
+    - 'time[datetime]'
+
+  content:
+    - '.post_body'
+    - '.message-content'
+
+  attachment_block:
+    - '.attachments'
+    - '.attachment'
+    - '.post_attachment'
+  attachment_name:
+    - '.filename, .attachment .filename'
+  attachment_size:
+    - '.filesize, .attachment .filesize'
+
+  next_page:
+    - 'a[rel="next"]'
+    - '.pagination_next'
+    - 'a.pageNav-jump--next'
