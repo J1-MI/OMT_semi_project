@@ -1,7 +1,7 @@
 """
 통합 포럼 크롤러
 - crawler_min.py 코드(requests+BeautifulSoup 기반)의 안전장치/셀렉터/YAML/저장(JSONL, SQLite) 유지
-- 기존존 코드(Playwright 기반)를 엔진으로 추가해 JS 의존 사이트 대응
+- 기존 코드(Playwright 기반)를 엔진으로 추가해 JS 의존 사이트 대응
 - 포럼별로 engine 선택 가능(config selectors.yaml에 engine 키 추가)
 - 공통 스키마(thread -> posts -> attachments 메타데이터만, 파일 자체는 비수집)
 - TOR 프록시 지원: requests는 socks5h://127.0.0.1:9150, playwright는 socks5://127.0.0.1:9050 기본값(필요 시 옵션으로 변경)
@@ -37,7 +37,6 @@ myjsforum:
 """
 
 from __future__ import annotations
-
 import argparse, json, os, re, sys, time, hashlib, random
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -498,6 +497,23 @@ def main():
     ap.add_argument("--tor-playwright-port", type=int, default=9050)
     ap.add_argument("--out-jsonl", default="out/crawl.jsonl")
     ap.add_argument("--out-sqlite", default=None, help="optional SQLite path")
+
+    # ---- Quarantine downloader options (opt-in) ----
+    ap.add_argument("--download-attachments", action="store_true",
+                    help="[DANGEROUS] Download attachments to quarantine (opt-in, never execute)")
+    ap.add_argument("--dl-out", default="quarantine",
+                    help="quarantine base directory")
+    ap.add_argument("--dl-max-size", type=int, default=20_000_000,
+                    help="max bytes per file (default 20MB)")
+    ap.add_argument("--dl-max-per-thread", type=int, default=5,
+                    help="max files per thread to download")
+    ap.add_argument("--dl-same-host", action="store_true",
+                    help="only download if attachment host equals thread host")
+    ap.add_argument("--zip-quarantine", action="store_true",
+                    help="create a zip archive of each thread's quarantine folder")
+    ap.add_argument("--zip-password", default=None,
+                    help="password for zip (requires pyminizip; ignored if unavailable)")
+
     args = ap.parse_args()
 
     try:
@@ -534,8 +550,7 @@ def main():
                 tor_playwright_port=args.tor_playwright_port,
             )
 
-    # playwright는 context manager로 수명 관리
-    # 포럼 중 하나라도 playwright가 필요하면 한 번 열고 재사용
+    # playwright 필요 여부 확인
     need_playwright = any(
         (args.engine == "playwright") or (args.engine == "auto" and conf.get(k, {}).get("engine") == "playwright")
         for k in args.forums
@@ -582,9 +597,195 @@ def main():
         sqlite_path = args.out_sqlite if args.out_sqlite.endswith(".db") else args.out_sqlite + ".db"
         save_sqlite(all_records, sqlite_path)
 
+    # ---- Optional quarantine download pass ----
+    if args.download_attachments:
+        print("[INFO] Quarantine download enabled. NEVER EXECUTE downloaded files.")
+        qbase = Path(args.dl_out)
+        qbase.mkdir(parents=True, exist_ok=True)
+        dl_session = make_requests_session_for_dl(args.tor, args.tor_requests_port)
+        from urllib.parse import urlparse
+
+        for rec in all_records:
+            # collect att urls
+            att_urls = []
+            for p in rec.get("posts", []):
+                for a in p.get("attachments", []):
+                    u = a.get("attachment_url")
+                    if u: att_urls.append(u)
+            if not att_urls:
+                continue
+
+            # per-thread folder
+            src = sanitize_filename(rec.get("source", "unknown"), "src")
+            thash = rec.get("thread_hash") or sha256(rec.get("thread_url", ""))
+            tdir = qbase / src / thash
+            tdir.mkdir(parents=True, exist_ok=True)
+
+            same_host = None
+            if args.dl_same_host:
+                same_host = urlparse(rec.get("thread_url", "")).netloc
+
+            manifest = {"thread_url": rec.get("thread_url"), "downloaded": []}
+            count = 0
+            for u in att_urls:
+                if count >= args.dl_max_per_thread:
+                    break
+                meta = stream_download(u, dl_session, dst_dir=tdir, max_bytes=args.dl_max_size, same_host=same_host)
+                if meta:
+                    manifest["downloaded"].append(meta)
+                    count += 1
+
+            # write manifest
+            (tdir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            if args.zip_quarantine:
+                zpath = tdir.with_suffix(".zip")
+                zip_quarantine_folder(tdir, zpath, password=args.zip_password)
+                print(f"[OK] Quarantine zipped: {zpath}")
+
 
 if __name__ == "__main__":
     if BeautifulSoup is None:
         print("[ERR] beautifulsoup4가 설치되어 있지 않습니다. `pip install beautifulsoup4 lxml`", file=sys.stderr)
         sys.exit(2)
     main()
+
+
+# === Quarantine attachment downloader (opt-in, safe-by-default) ===
+# 본 섹션은 악성 가능성이 있는 첨부 파일을 "절대 실행하지 않고" 격리 저장하는 목적입니다.
+# 기본적으로 비활성화되어 있으며, --download-attachments 플래그를 켜야 동작합니다.
+# 안전장치:
+#  - 명시적 opt-in (--download-attachments)
+#  - HTML/텍스트 응답 차단, 크기 제한(--dl-max-size), 개수 제한(--dl-max-per-thread)
+#  - 파일명 정규화 및 무해화(.quarantine 확장자), 해시/메타데이터 manifest 기록
+#  - (선택) ZIP 묶기(--zip-quarantine), (선택) 암호 설정(--zip-password, pyminizip가 있을 때만)
+
+import shutil
+import zipfile
+
+try:
+    import pyminizip  # 선택사항: 비표준 의존성
+except Exception:
+    pyminizip = None
+
+SAFE_TEXT_CT = {"text/html", "application/xhtml+xml", "text/plain", "text/markdown"}
+
+_name_sanitize = re.compile(r"[^A-Za-z0-9._-]+")
+
+def sanitize_filename(name: str, fallback: str) -> str:
+    name = (name or "").strip() or fallback
+    name = _name_sanitize.sub("_", name)
+    if len(name) > 120:
+        root, dot, ext = name.rpartition('.')
+        name = (root[:80] + (dot + ext if dot else '')) or name[:120]
+    return name
+
+
+def make_requests_session_for_dl(use_tor: bool, tor_requests_port: int):
+    if requests is None:
+        raise RuntimeError("requests가 필요합니다.")
+    s = requests.Session()
+    s.headers.update(UA)
+    if use_tor:
+        s.proxies.update({
+            "http": f"socks5h://127.0.0.1:{tor_requests_port}",
+            "https": f"socks5h://127.0.0.1:{tor_requests_port}",
+        })
+    return s
+
+
+def stream_download(url: str, session, *, dst_dir: Path, max_bytes: int, same_host: Optional[str]) -> Optional[dict]:
+    # same_host: 같은 호스트만 허용할 때 호스트 문자열 전달
+    try:
+        from urllib.parse import urlparse
+        pu = urlparse(url)
+        if same_host and pu.netloc and pu.netloc != same_host:
+            print(f"[SKIP] cross-host blocked: {url}", file=sys.stderr)
+            return None
+
+        # 위험 URL 패턴이더라도 명시적 opt-in 시도는 허용(단, HTML/텍스트는 차단)
+        r = session.get(url, stream=True, timeout=45, allow_redirects=True)
+        ct = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        cd = r.headers.get("Content-Disposition") or ""
+        cl = r.headers.get("Content-Length")
+        if ct in SAFE_TEXT_CT:
+            r.close(); print(f"[SKIP] safe-text content-type: {ct} {url}")
+            return None
+        if cl and cl.isdigit() and int(cl) > max_bytes:
+            r.close(); print(f"[SKIP] too large: {cl} > {max_bytes} {url}")
+            return None
+
+        # 파일명 결정을 위한 힌트
+        disp_name = None
+        m = re.search(r"filename\\*=UTF-8''([^;\\r\\n]+)", cd)
+        if m:
+            disp_name = m.group(1)
+        else:
+            m2 = re.search(r'filename="?([^";]+)"?', cd)
+            if m2:
+                disp_name = m2.group(1)
+        # URL basename fallback
+        from urllib.parse import unquote
+        base_from_url = os.path.basename(pu.path.rstrip("/")) or "file.bin"
+        fname = sanitize_filename(disp_name or unquote(base_from_url), fallback="file.bin")
+
+        # 최종 경로 (.quarantine 확장자 강제)
+        sha = hashlib.sha256()
+        tmp_path = dst_dir / (fname + ".part")
+        final_name = fname + ".quarantine"
+        final_path = dst_dir / final_name
+
+        downloaded = 0
+        with open(tmp_path, "wb") as f:
+            for chunk in r.iter_content(8192):
+                if not chunk:
+                    continue
+                downloaded += len(chunk)
+                if downloaded > max_bytes:
+                    r.close(); f.close()
+                    tmp_path.unlink(missing_ok=True)
+                    print(f"[SKIP] exceeded {max_bytes} bytes: {url}")
+                    return None
+                sha.update(chunk)
+                f.write(chunk)
+        r.close()
+        os.replace(tmp_path, final_path)
+
+        return {
+            "url": url,
+            "saved_as": str(final_path),
+            "sha256": sha.hexdigest(),
+            "size": downloaded,
+            "content_type": ct,
+        }
+    except Exception as e:
+        print(f"[WARN] download failed: {url} ({e})", file=sys.stderr)
+        return None
+
+
+def zip_quarantine_folder(folder: Path, zip_path: Path, *, password: Optional[str] = None):
+    folder = Path(folder)
+    zip_path = Path(zip_path)
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if password and pyminizip is not None:
+        # pyminizip은 파일 단위라 재귀적으로 수집
+        files = []
+        for root, _, fns in os.walk(folder):
+            for fn in fns:
+                files.append(os.path.join(root, fn))
+        # 단일 zip 생성: pyminizip.compress_multiple( ... )
+        try:
+            pyminizip.compress_multiple(files, [str(folder)] * len(files), str(zip_path), password, 5)
+            return True
+        except Exception as e:
+            print(f"[WARN] pyminizip failed, fallback to plain zip: {e}", file=sys.stderr)
+
+    # 일반 zip (암호 없음)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for root, _, files in os.walk(folder):
+            for fn in files:
+                full = Path(root) / fn
+                rel = full.relative_to(folder)
+                zf.write(full, arcname=str(rel))
+    return True
