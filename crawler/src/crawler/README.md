@@ -59,7 +59,7 @@ pip install "requests[socks]" beautifulsoup4 lxml pyyaml
 pip install playwright
 python -m playwright install chromium
 
-# (옵션) ZIP 암호화 쓰고 싶으면
+# (옵션) ZIP 암호화 원할 경우:
 pip install pyminizip
 
 3) 셀렉터 selectors.yaml
