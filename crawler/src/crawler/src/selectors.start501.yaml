@@ -1,0 +1,61 @@
+﻿darkforums:
+  engine: requests
+
+  list_urls:
+    - "https://darkforums.st/forum-10-page-501.html"
+    - "https://darkforums.st/forum-12-page-501.html"
+    - "https://darkforums.st/forum-13-page-501.html"
+
+  # 스레드 링크(너무 제한하지 말고 받아서 후처리에서 중복제거)
+  thread_link:
+    - 'a.thread-subject'
+    - 'a.subject_old, a.subject_new'
+    - 'tr[id^="tid_"] a[href*="/Thread-"]'
+    - 'a[href^="/Thread-"]'
+
+  # 다음 페이지
+  next_page:
+    - 'a.pagination_next'
+    - 'a[rel="next"]'
+    - 'a.pagination_last'
+    - 'a.pagination_page'
+
+  # 상세 제목
+  thread_title:
+    - 'span.thread-info__name strong'
+    - 'h1#thread_subject'
+    - 'h1.thread-title'
+    - 'title'
+
+  # 포스트 컨테이너/본문/작성자/시간/퍼머링크
+  post_container:
+    - 'div.post.classic'
+    - 'div.post'
+  content:
+    - 'div.post_body'
+    - 'div.post_content .post_body'
+    - 'div.message'
+  author:
+    - 'div.post_user-profile a'
+    - 'a.username'
+    - 'span.author'
+  posted_time:
+    - 'span.post_date'
+    - 'time'
+  post_permalink:
+    - 'div.post_head .float_right a[href*="?pid="]'
+    - 'a.permalink'
+    - 'a[title="Permalink"]'
+
+  # 첨부
+  attachment_block:
+    - 'div.attachments'
+    - 'ul.attachments'
+    - 'div.attachment'
+  attachment_name:
+    - 'a.attachment'
+    - 'span.filename'
+    - 'a.file'
+  attachment_size:
+    - 'span.filesize'
+    - 'span.size'

@@ -1,0 +1,65 @@
+darkforums:
+  engine: auto
+
+  list_urls:
+    - "https://darkforums.st/Forum-Databases"
+    - "https://darkforums.st/Forum-Source-Codes"
+    - "https://darkforums.st/Forum-Other-Leaks"
+    - "https://darkforums.st/Forum-Combolists"
+    - "https://darkforums.st/Forum-Doxes"
+    - "https://darkforums.st/Forum-Games"
+    - "https://darkforums.st/Forum-Cracked-Accounts"
+    - "https://darkforums.st/Forum-Cracked-Tools"
+
+  # 목록(카테고리) 페이지 → 스레드 링크
+  thread_link:
+    # 슬래시 유무 모두 허용 + 액션/lastpost/페이지 파라미터 제외
+    - 'a[href*="Thread-"]:not([href*="action="]):not([href*="lastpost"])'
+
+  # 페이지네이션(다음 페이지)
+  next_page:
+    - 'a.pagination_next'
+    - 'a[rel="next"]'
+    - 'a.pagination_page'
+    - 'a.pagination_last'
+
+  # 상세(스레드)에서 제목/본문/작성자
+  thread_title:
+    - 'span.thread-info__name strong'
+    - 'h1#thread_subject'
+    - 'h1.thread-title'
+    - 'title'
+
+  post_container:
+    - 'div.post.classic'
+    - 'div.post'
+
+  content:
+    - 'div.post_body'
+    - 'div.post_content .post_body'
+    - 'div.message'
+
+  author:
+    - 'div.post_user-profile a'
+    - 'a.username'
+    - 'span.author'
+
+  posted_time:
+    - 'span.post_date'
+    - 'time'
+
+  post_permalink:
+    - 'div.post_head .float_right a[href*="?pid="]'
+    - 'a.permalink'
+
+  attachment_block:
+    - 'div.attachments'
+    - 'ul.attachments'
+    - 'div.attachment'
+  attachment_name:
+    - 'a.attachment'
+    - 'span.filename'
+    - 'a.file'
+  attachment_size:
+    - 'span.filesize'
+    - 'span.size'
