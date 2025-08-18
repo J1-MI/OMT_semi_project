@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OMT DarkWeb Dashboard</title>
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Custom CSS Styles */
+        .risk-critical { color: #dc3545; font-weight: bold; }
+        .risk-warning { color: #ffc107; font-weight: bold; }
+        .risk-informational { color: #17a2b8; font-weight: bold; }
+        .table-responsive { max-height: 600px; overflow-y: auto; }
+        .gauge-container { position: relative; width: 100%; height: 180px; }
+        .gauge-label {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        .small-box .icon { font-size: 60px; }
+        .dropdown-item, #all-alerts-modal-list .list-group-item, #thread-list .list-group-item { cursor: pointer; }
+        #alert-details-modal-content, #alert-details-modal-memo { white-space: pre-wrap; word-wrap: break-word; }
+        #post-list-content { white-space: pre-wrap; word-wrap: break-word; font-size: 0.9rem; }
+        .text-truncate-md { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini">
+<div class="wrapper">
+
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item d-none d-sm-inline-block"><a class="nav-link">총 탐지 건수: <span id="total-alerts">0</span> 건</a></li>
+            <li class="nav-item dropdown">
+                <a class="nav-link" data-toggle="dropdown" href="#">
+                    <i class="far fa-bell"></i>
+                    <span class="badge badge-danger navbar-badge" id="emergency-badge" style="display: none;">0</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+                    <span class="dropdown-item dropdown-header"><span id="emergency-header-count">0</span> 개의 긴급 알림</span>
+                    <div id="emergency-alert-list"></div>
+                    <a href="#" class="dropdown-item dropdown-footer" data-toggle="modal" data-target="#all-alerts-modal">모든 긴급 알림 보기</a>
+                </div>
+            </li>
+        </ul>
+    </nav>
+    
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link"><span class="brand-text font-weight-light">OMT DarkWeb</span></a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="#threat-status-tab" class="nav-link active" data-toggle="tab"><i class="nav-icon fas fa-tachometer-alt"></i><p>위협 탐지 현황</p></a></li>
+                    <li class="nav-item"><a href="#summary-report-tab" class="nav-link" data-toggle="tab"><i class="nav-icon fas fa-file-alt"></i><p>요약 보고</p></a></li>
+                    <li class="nav-item"><a href="#analysis-tab" class="nav-link" data-toggle="tab"><i class="nav-icon fas fa-search"></i><p>스레드/작성자 분석</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container-fluid"><div class="row mb-2"><div class="col-sm-6"><h1 class="m-0">Dashboard</h1></div></div></div>
+        </div>
+        <div class="content">
+            <div class="container-fluid">
+                <div class="tab-content">
+                    <div class="tab-pane active" id="threat-status-tab">
+                        <div class="row">
+                            <div class="col-md-6"><div class="card"><div class="card-header"><h5 class="card-title">위험도별 탐지 비율</h5></div><div class="card-body" style="height: 250px;"><canvas id="mainRiskChart"></canvas></div></div></div>
+                            <div class="col-md-6"><div class="card"><div class="card-header"><h5 class="card-title">월별 전체 동향</h5></div><div class="card-body" style="height: 250px;"><canvas id="mainTrendChart"></canvas></div></div></div>
+                        </div>
+                        <div class="row mt-4"><div class="col-md-12"><div class="card"><div class="card-header"><h3 class="card-title">최신 탐지 목록</h3></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover m-0">
+                            <thead><tr><th>위험도</th><th>작성자</th><th>유형</th><th>탐지 시간</th></tr></thead>
+                            <tbody id="main-table-body"></tbody>
+                        </table></div></div></div></div></div>
+                    </div>
+
+                    <div class="tab-pane" id="summary-report-tab">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card card-primary card-outline">
+                                    <div class="card-header"><h5 class="card-title">종합 위험도</h5></div>
+                                    <div class="card-body">
+                                        <div class="gauge-container">
+                                            <canvas id="summaryRiskGaugeChart"></canvas>
+                                            <div id="summary-gauge-label" class="gauge-label">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="card card-primary card-outline">
+                                    <div class="card-header"><h5 class="card-title">주요 위협 카테고리</h5></div>
+                                    <div class="card-body" style="height: 220px;"><canvas id="summaryCategoryChart"></canvas></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header"><h3 class="card-title">가장 활동적인 스레드 TOP 5</h3></div>
+                                    <div class="card-body p-0"><div class="table-responsive"><table class="table">
+                                        <thead><tr><th>스레드 제목</th><th class="text-center">탐지 건수</th></tr></thead>
+                                        <tbody id="top-threads-table-body"></tbody>
+                                    </table></div></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header"><h3 class="card-title">가장 활동적인 작성자 TOP 5</h3></div>
+                                    <div class="card-body p-0"><div class="table-responsive"><table class="table">
+                                        <thead><tr><th>작성자</th><th class="text-center">탐지 건수</th></tr></thead>
+                                        <tbody id="top-authors-table-body"></tbody>
+                                    </table></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane" id="analysis-tab">
+                        <div class="row">
+                            <div class="col-12"><h4 class="mb-3">스레드 상세 분석</h4></div>
+                            <div class="col-md-5">
+                                <div class="card">
+                                    <div class="card-header"><h3 class="card-title">스레드 목록</h3></div>
+                                    <div class="card-body p-0"><div class="table-responsive" style="height: 500px;"><ul class="list-group list-group-flush" id="thread-list"></ul></div></div>
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="card">
+                                    <div class="card-header"><h3 class="card-title">게시글 내용</h3></div>
+                                    <div class="card-body"><div id="post-list-container" class="table-responsive" style="height: 500px;">
+                                        <p id="post-list-placeholder" class="text-muted">왼쪽에서 스레드를 선택하세요.</p>
+                                        <div id="post-list"></div>
+                                    </div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <h4 class="mb-3">작성자 상세 분석</h4>
+                                <div class="card">
+                                    <div class="card-header"><h3 class="card-title">전체 작성자 활동 목록</h3></div>
+                                    <div class="card-body p-0"><div class="table-responsive" style="height: 500px;"><table class="table table-hover m-0">
+                                        <thead><tr><th>최고 위험도</th><th>작성자</th><th>최초 활동</th><th>최근 활동</th><th class="text-center">탐지 건수</th></tr></thead>
+                                        <tbody id="author-analysis-table-body"></tbody>
+                                    </table></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="main-footer"><strong>Copyright &copy; 2023-2025 <a href="#">OMT</a>.</strong> All rights reserved.</footer>
+</div>
+
+<div class="modal fade" id="all-alerts-modal" tabindex="-1" role="dialog"><div class="modal-dialog modal-lg" role="document"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">전체 긴급 알림 목록</h5><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span></button></div><div class="modal-body" style="max-height: 70vh; overflow-y: auto;"><ul class="list-group" id="all-alerts-modal-list"></ul></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">닫기</button></div></div></div></div>
+<div class="modal fade" id="alert-details-modal" tabindex="-1" role="dialog"><div class="modal-dialog modal-lg" role="document"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">알림 상세 정보</h5><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><p><strong>작성자:</strong> <span id="alert-details-modal-account"></span></p><p><strong>위험도:</strong> <span id="alert-details-modal-risk"></span></p><p><strong>탐지 시간:</strong> <span id="alert-details-modal-date"></span></p><hr><p><strong>원본 내용:</strong></p><pre><code id="alert-details-modal-content"></code></pre><hr><div class="form-group"><label for="alert-details-modal-memo">분석가 메모</label><textarea class="form-control" id="alert-details-modal-memo" rows="4"></textarea></div></div><div class="modal-footer justify-content-between"><button type="button" class="btn btn-info" id="go-to-thread-btn">스레드에서 보기</button><div><button type="button" class="btn btn-secondary" data-dismiss="modal">닫기</button><button type="button" class="btn btn-primary" id="save-memo-button" onclick="saveMemo()">메모 저장</button></div></div></div></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script>
+    // 전역 변수
+    let allAlerts = [], rawThreads = [], emergencyAlerts = [];
+    let mainRiskChart, mainTrendChart, summaryRiskGaugeChart, summaryCategoryChart;
+    let isNotificationVisible = false;
+    let currentOpenAlertId = null;
+    let isToastVisible = false;
+
+    // --- DOM 요소 ---
+    const mainTableBody = document.getElementById('main-table-body');
+    const totalAlertsElement = document.getElementById('total-alerts');
+    const emergencyBadge = document.getElementById('emergency-badge');
+    const emergencyHeaderCount = document.getElementById('emergency-header-count');
+    const emergencyAlertList = document.getElementById('emergency-alert-list');
+    const allAlertsModalList = document.getElementById('all-alerts-modal-list');
+    const topThreadsTableBody = document.getElementById('top-threads-table-body');
+    const topAuthorsTableBody = document.getElementById('top-authors-table-body');
+    const threadList = document.getElementById('thread-list');
+    const postList = document.getElementById('post-list');
+    const postListPlaceholder = document.getElementById('post-list-placeholder');
+    const authorAnalysisTableBody = document.getElementById('author-analysis-table-body');
+    const goToThreadBtn = document.getElementById('go-to-thread-btn');
+    
+    // --- 유틸리티 함수 ---
+    function formatTime(isoTimestamp) {
+        if (!isoTimestamp) return 'N/A';
+        const now = new Date();
+        const alertTime = new Date(isoTimestamp);
+        const pad = (num) => String(num).padStart(2, '0');
+
+        // 당일인지 확인
+        if (alertTime.getFullYear() === now.getFullYear() &&
+            alertTime.getMonth() === now.getMonth() &&
+            alertTime.getDate() === now.getDate()) {
+            const hour = pad(alertTime.getHours());
+            const minute = pad(alertTime.getMinutes());
+            const second = pad(alertTime.getSeconds());
+            return `${hour}:${minute}:${second}`;
+        }
+        
+        // 당일이 아니면 날짜와 시간 모두 표시
+        const year = alertTime.getFullYear();
+        const month = pad(alertTime.getMonth() + 1);
+        const day = pad(alertTime.getDate());
+        const hour = pad(alertTime.getHours());
+        const minute = pad(alertTime.getMinutes());
+        return `${year}-${month}-${day} ${hour}:${minute}`;
+    }
+    
+    // --- 데이터 처리 함수 ---
+    function getThreatAlerts(alerts) { return alerts.filter(alert => alert.risk_level !== 'Informational'); }
+    function calculateRiskCounts(alerts) { const counts = { 'Critical': 0, 'Warning': 0, 'Informational': 0 }; alerts.forEach(alert => { if (counts.hasOwnProperty(alert.risk_level)) counts[alert.risk_level]++; }); return counts; }
+    function calculateCategoryCounts(alerts) { const counts = {}; getThreatAlerts(alerts).forEach(alert => { counts[alert.leaked_data] = (counts[alert.leaked_data] || 0) + 1; }); return counts; }
+    function processDataForTrend(alerts) { const monthlyCounts = {}; const monthLabels = Array.from({length: 6}, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - 5 + i); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }); monthLabels.forEach(label => monthlyCounts[label] = 0); alerts.forEach(alert => { const monthKey = alert.date.substring(0, 7); if (monthlyCounts.hasOwnProperty(monthKey)) monthlyCounts[monthKey]++; }); return { labels: monthLabels, data: Object.values(monthlyCounts) }; }
+    function calculateRiskScore(alerts) { if (alerts.length === 0) return 0; const weights = { 'Critical': 10, 'Warning': 5 }; let totalScore = 0; alerts.forEach(alert => { totalScore += weights[alert.risk_level] || 0; }); const maxScore = alerts.length * 10; if (maxScore === 0) return 0; return Math.round((totalScore / maxScore) * 100); }
+    function processAuthorData(alerts) { 
+        const aggregated = {}; 
+        alerts.forEach(alert => { 
+            const key = alert.account; 
+            if (!aggregated[key]) aggregated[key] = { risk_level: 'Informational', account: alert.account, dates: [], count: 0 }; 
+            aggregated[key].dates.push(alert.date); 
+            aggregated[key].count++; 
+            if(alert.risk_level === 'Critical') aggregated[key].risk_level = 'Critical'; 
+            else if(alert.risk_level === 'Warning' && aggregated[key].risk_level !== 'Critical') aggregated[key].risk_level = 'Warning'; 
+        }); 
+        return Object.values(aggregated).map(item => ({...item, initial_date: item.dates.sort()[0], recent_date: item.dates[item.dates.length - 1]})).sort((a, b) => b.count - a.count); 
+    }
+    
+    // --- UI 업데이트 함수 ---
+    function updateThreatDetectionTab(alerts) {
+        const riskCounts = calculateRiskCounts(alerts);
+        const riskCtx = document.getElementById('mainRiskChart').getContext('2d');
+        if (mainRiskChart) mainRiskChart.destroy();
+        mainRiskChart = new Chart(riskCtx, { type: 'doughnut', data: { labels: Object.keys(riskCounts), datasets: [{ data: Object.values(riskCounts), backgroundColor: ['#dc3545', '#ffc107', '#17a2b8'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+        const trendData = processDataForTrend(alerts);
+        const trendCtx = document.getElementById('mainTrendChart').getContext('2d');
+        if (mainTrendChart) mainTrendChart.destroy();
+        mainTrendChart = new Chart(trendCtx, { type: 'line', data: { labels: trendData.labels, datasets: [{ label: '월별 탐지 건수', data: trendData.data, borderColor: '#007bff', fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
+        mainTableBody.innerHTML = '';
+        alerts.slice(0, 100).forEach(alert => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td><span class="risk-${alert.risk_level.toLowerCase()}">${alert.risk_level}</span></td><td>${alert.account}</td><td>${alert.leaked_data}</td><td>${formatTime(alert.date)}</td>`;
+            mainTableBody.appendChild(row);
+        });
+    }
+    function updateSummaryReport(alerts, rawThreads) { const threatAlerts = getThreatAlerts(alerts); const score = calculateRiskScore(alerts); const gaugeCtx = document.getElementById('summaryRiskGaugeChart').getContext('2d'); document.getElementById('summary-gauge-label').textContent = score; const gaugeColor = score > 15 ? '#dc3545' : score > 5 ? '#ffc107' : '#17a2b8'; if (summaryRiskGaugeChart) summaryRiskGaugeChart.destroy(); summaryRiskGaugeChart = new Chart(gaugeCtx, { type: 'doughnut', data: { datasets: [{ data: [score, 100 - score], backgroundColor: [gaugeColor, '#e9ecef'], borderWidth: 0, circumference: 180, rotation: 270 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { tooltip: { enabled: false } } } }); const categoryCounts = calculateCategoryCounts(threatAlerts); const sortedCategories = Object.entries(categoryCounts).sort(([,a],[,b]) => b-a).slice(0, 5); const categoryCtx = document.getElementById('summaryCategoryChart').getContext('2d'); if (summaryCategoryChart) summaryCategoryChart.destroy(); summaryCategoryChart = new Chart(categoryCtx, { type: 'bar', data: { labels: sortedCategories.map(el=>el[0]), datasets: [{ label: '탐지 건수', data: sortedCategories.map(el=>el[1]), backgroundColor: '#28a745' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } }); const threadCounts = rawThreads.reduce((acc, thread) => { acc[thread.title] = (thread.posts || []).length; return acc; }, {}); const sortedThreads = Object.entries(threadCounts).sort(([,a],[,b]) => b-a).slice(0, 5); topThreadsTableBody.innerHTML = ''; sortedThreads.forEach(thread => topThreadsTableBody.innerHTML += `<tr><td>${thread[0]}</td><td class="text-center">${thread[1]}</td></tr>`); const authorCounts = alerts.reduce((acc, alert) => { acc[alert.account] = (acc[alert.account] || 0) + 1; return acc; }, {}); const sortedAuthors = Object.entries(authorCounts).sort(([,a],[,b]) => b-a).slice(0, 5); topAuthorsTableBody.innerHTML = ''; sortedAuthors.forEach(author => topAuthorsTableBody.innerHTML += `<tr><td>${author[0]}</td><td class="text-center">${author[1]}</td></tr>`); }
+    function updateAnalysisTab(alerts, rawThreads) {
+        threadList.innerHTML = '';
+        rawThreads.sort((a,b) => (b.posts || []).length - (a.posts || []).length).forEach(thread => { const li = document.createElement('li'); li.className = 'list-group-item'; li.innerHTML = `${thread.title} <span class="badge bg-primary float-right">${(thread.posts || []).length}</span>`; li.onclick = () => displayPostsForThread(thread.thread_hash, rawThreads); threadList.appendChild(li); });
+        const authorData = processAuthorData(alerts);
+        authorAnalysisTableBody.innerHTML = '';
+        authorData.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td><span class="risk-${item.risk_level.toLowerCase()}">${item.risk_level}</span></td><td>${item.account}</td><td>${formatTime(item.initial_date)}</td><td>${formatTime(item.recent_date)}</td><td class="text-center"><span class="badge bg-secondary">${item.count}</span></td>`;
+            authorAnalysisTableBody.appendChild(row);
+        });
+    }
+    function displayPostsForThread(threadHash, allRawThreads) { const thread = allRawThreads.find(t => t.thread_hash === threadHash); if (!thread || !thread.posts) return; postListPlaceholder.style.display = 'none'; postList.innerHTML = ''; thread.posts.forEach(post => { const postCard = `<div class="card card-widget"><div class="card-header"><div class="user-block"><span class="username">${post.author}</span><span class="description">${post.posted_at}</span></div></div><div class="card-body"><p id="post-list-content">${post.content}</p></div></div>`; postList.innerHTML += postCard; }); Array.from(threadList.children).forEach(li => { li.classList.remove('active'); if (li.textContent.startsWith(thread.title)) { li.classList.add('active'); } }); }
+
+    // --- 팝업/알림 및 모달 관련 함수 ---
+    function showToastAlert(alert) { 
+        if (isToastVisible) return;
+        isToastVisible = true;
+        $(document).Toasts('create', { 
+            class: 'bg-danger', 
+            title: '🚨 긴급 위협 감지', 
+            subtitle: alert.risk_level, 
+            body: `<strong>작성자:</strong> ${alert.account}<br><strong>유형:</strong> ${alert.leaked_data}`, 
+            autohide: true, 
+            delay: 7000,
+            onClose: function() {
+                isToastVisible = false;
+            }
+        }); 
+    }
+    
+    function showDesktopNotification(alert) { 
+        if (!('Notification' in window) || Notification.permission !== 'granted' || isNotificationVisible) return; 
+        isNotificationVisible = true; 
+        const notification = new Notification(`🚨 긴급 위협 감지: ${alert.leaked_data}`, { 
+            body: `작성자: ${alert.account} (소스: ${alert.host})`, 
+            tag: 'darkweb-alert' 
+        }); 
+        notification.onclick = function() { 
+            window.focus(); 
+            showAlertDetailsModal(alert.id); 
+            this.close(); 
+        }; 
+        notification.onclose = function() { 
+            isNotificationVisible = false; 
+        }; 
+    }
+    
+    function updateBadge() { emergencyBadge.textContent = emergencyAlerts.length; emergencyBadge.style.display = emergencyAlerts.length > 0 ? 'inline-block' : 'none'; emergencyHeaderCount.textContent = emergencyAlerts.length; }
+    function updateEmergencyAlertDropdown() { emergencyAlertList.innerHTML = ''; emergencyAlerts.slice(0, 10).forEach(alert => { const icon = alert.risk_level === 'Critical' ? 'fa-exclamation-circle text-danger' : 'fa-exclamation-triangle text-warning'; const item = `<div class="dropdown-divider"></div><a onclick="showAlertDetailsModal('${alert.id}')" class="dropdown-item"><i class="fas ${icon} mr-2"></i> ${alert.account}<span class="float-right text-muted text-sm">${formatTime(alert.date)}</span></a>`; emergencyAlertList.innerHTML += item; }); }
+    function showAlertDetailsModal(alertId) { const alert = allAlerts.find(a => a.id === alertId); if (!alert) return; currentOpenAlertId = alert.id; document.getElementById('alert-details-modal-account').textContent = alert.account; document.getElementById('alert-details-modal-risk').innerHTML = `<span class="risk-${alert.risk_level.toLowerCase()}">${alert.risk_level}</span>`; document.getElementById('alert-details-modal-date').textContent = formatTime(alert.date); document.getElementById('alert-details-modal-content').textContent = alert.raw_content; document.getElementById('alert-details-modal-memo').value = alert.memo || ''; goToThreadBtn.onclick = () => { $('#alert-details-modal').modal('hide'); $('.nav-link[href="#analysis-tab"]').tab('show'); displayPostsForThread(alert.thread_hash, rawThreads); }; $('#alert-details-modal').modal('show'); }
+    function saveMemo() { const memoText = document.getElementById('alert-details-modal-memo').value; if (currentOpenAlertId === null) return; fetch('/save_memo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: currentOpenAlertId, memo: memoText }) }).then(res => res.json()).then(data => { if (data.status === 'success') { const alertInJs = allAlerts.find(a => a.id === currentOpenAlertId); if(alertInJs) alertInJs.memo = memoText; alert('메모가 저장되었습니다.'); $('#alert-details-modal').modal('hide'); } else { alert('메모 저장에 실패했습니다: ' + data.message); } }).catch(err => { console.error('메모 저장 오류:', err); alert('메모 저장 중 오류가 발생했습니다.'); }); }
+    $('#all-alerts-modal').on('show.bs.modal', function () { allAlertsModalList.innerHTML = ''; emergencyAlerts.forEach(alert => { const item = `<li class="list-group-item list-group-item-action" onclick="showAlertDetailsModal('${alert.id}')"><strong>${alert.account}</strong> (${formatTime(alert.date)})<br><small>${alert.host} | <span class="risk-${alert.risk_level.toLowerCase()}">${alert.risk_level}</span></small></li>`; allAlertsModalList.innerHTML += item; }); });
+    
+    // --- 메인 업데이트 함수 ---
+    function updateDashboard(data) {
+        allAlerts = data.alerts; rawThreads = data.raw_threads;
+        updateThreatDetectionTab(allAlerts);
+        updateSummaryReport(allAlerts, rawThreads);
+        updateAnalysisTab(allAlerts, rawThreads);
+        totalAlertsElement.textContent = allAlerts.length;
+    }
+    
+    // --- 페이지 로딩 및 이벤트 리스너 ---
+    document.addEventListener('DOMContentLoaded', () => {
+        if ('Notification' in window) { Notification.requestPermission(); }
+        fetch('/get_initial_data').then(res => res.json()).then(data => {
+            if (data && data.alerts) {
+                updateDashboard(data);
+                emergencyAlerts = getThreatAlerts(data.alerts).sort((a, b) => new Date(b.date) - new Date(a.date));
+                updateBadge();
+                updateEmergencyAlertDropdown();
+            }
+        }).catch(err => console.error("초기 데이터 로딩 오류:", err));
+        
+        const eventSource = new EventSource('/stream_alerts');
+        eventSource.onmessage = function(event) {
+            const newAlert = JSON.parse(event.data);
+            if (newAlert.risk_level !== 'Informational') { showToastAlert(newAlert); emergencyAlerts.unshift(newAlert); updateBadge(); updateEmergencyAlertDropdown(); }
+            if (newAlert.risk_level === 'Critical') { showDesktopNotification(newAlert); }
+            fetch('/get_initial_data').then(res => res.json()).then(data => { if (data && data.alerts) updateDashboard(data); });
+        };
+        eventSource.onerror = err => console.error("EventSource 실패:", err);
+    });
+</script>
+</body>
+</html>
