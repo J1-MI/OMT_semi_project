@@ -16,7 +16,7 @@ app = Flask(__name__)
 
 # --- 설정 ---
 RAW_DATA_JSONL_FILES = [
-    'crawl_20250811_011758.jsonl' # 테스트용 파일
+    'darkforums0250817_181707.jsonl' # 테스트용 파일
 ]
 PROCESSED_IDS_LOG_FILE = os.path.join(os.path.dirname(__file__), 'processed_ids.log')
 MEMOS_FILE = os.path.join(os.path.dirname(__file__), 'analysis_memos.json')
