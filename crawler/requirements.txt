@@ -1,9 +1,0 @@
-flask
-requests[socks]
-selenium
-beautifulsoup4
-lxml
-pyyaml
-# optional:
-# playwright
-# pyminizip

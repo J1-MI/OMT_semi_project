@@ -14,12 +14,22 @@ from github_notifier import create_github_issue
 
 app = Flask(__name__)
 
+#테스트
+BASE_DIR = os.path.dirname(__file__)
+RAW_DATA_JSONL_FILES = [
+    os.path.join(BASE_DIR, 'darkforums0250817_181707.jsonl')
+]
+PROCESSED_IDS_LOG_FILE = os.path.join(BASE_DIR, 'processed_ids.log')
+MEMOS_FILE = os.path.join(BASE_DIR, 'analysis_memos.json')
+
+'''
 # --- 설정 ---
 RAW_DATA_JSONL_FILES = [
     'darkforums0250817_181707.jsonl' # 테스트용 파일
 ]
 PROCESSED_IDS_LOG_FILE = os.path.join(os.path.dirname(__file__), 'processed_ids.log')
 MEMOS_FILE = os.path.join(os.path.dirname(__file__), 'analysis_memos.json')
+'''
 
 # --- 메모 로딩 ---
 def load_memos():

@@ -214,3 +214,13 @@ data/
 quarantine/
 crawler/out/
 playwright-report/
+
+# Log & cash data & loading file & test data
+*.log
+__pycache__
+.DS_Store
+
+backend/alert/alert_system/processed_ids.log
+backend/alert/alert_system/analysis_memos.json
+
+data/crawled/*.jsonl

@@ -4,6 +4,8 @@ selenium
 beautifulsoup4
 lxml
 pyyaml
+flask
+flask-socketio
 # optional:
 # playwright
 # pyminizip

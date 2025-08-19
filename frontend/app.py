@@ -8,9 +8,12 @@ from backend.alert import send_alert
 from backend.osint import run_osint
 
 from flask import Flask, render_template, redirect, url_for
+#from backend.alert import alerts_bp
+from backend.alert.alert_system.bp import alerts_bp
 
 template_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates'))
 app = Flask(__name__, template_folder=template_path)
+app.register_blueprint(alerts_bp, url_prefix="/alerts")
 
 @app.route('/')
 def index():
