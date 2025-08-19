@@ -207,4 +207,9 @@ marimo/_lsp/
 __marimo__/
 
 # Chrome Driver
-chromdriver.exe
+chromedriver.exe
+
+# data
+data/
+*.jsonl
+logs/

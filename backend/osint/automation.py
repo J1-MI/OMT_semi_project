@@ -261,7 +261,16 @@ def main():
     n = pipeline(args.input, args.out)
     print(f"[+] Wrote {n} records to {args.out}")
 
+# 내부 호출용 엔트리포인트 (Flask 등에서 사용)
+def run_osint(input_dir: str, out_path: str):
+    """
+    입력 폴더의 파일들을 정규화 → IOC 추출 → 스코어링 → 중복제거 후
+    JSONL(out_path)로 저장합니다.
+    반환 예: {"count": N, "out": "./data/osint_out.jsonl"}
+    """
+    n = pipeline(input_dir, out_path)
+    return {"count": n, "out": out_path}
+
 
 if __name__ == "__main__":
     main()
-

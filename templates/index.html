@@ -8,8 +8,12 @@
     <body>
         <h1>Darkweb leaked information collecting system</h1>
         <p>Click the button to start Crawling</p>
-        <a herf="{{ url_for('crawl') }}">
+        <a href="{{ url_for('crawl') }}">
             <button>Start Crawling</button>
+        </a>
+        <p>Or run OSINT automation</p>
+        <a href="{{ url_for('osint') }}">
+            <button>Run OSINT</button>
         </a>
     </body>
 </html>
