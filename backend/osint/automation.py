@@ -272,4 +272,3 @@ def run_osint(input_dir: str, out_path: str):
 
 if __name__ == "__main__":
     main()
-
