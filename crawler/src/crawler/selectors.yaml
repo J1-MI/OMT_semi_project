@@ -1,0 +1,18 @@
+# Sample File!
+darkforums:
+  engine: requests                 # 또는 playwright
+  list_urls:
+    - "https://example.onion/forum?page=1"
+  thread_link: ["a.thread-title", "h3.title > a"]
+  next_page: "a.next"
+
+  thread_title: ["h1.thread-title", "h1.title"]
+  post_container: ["div.post", "li.comment"]
+  content: ["div.content", "div.body"]
+  author: ["span.author", "a.user"]
+  posted_time: ["time", "span.time"]
+  post_permalink: ["a.permalink"]
+
+  attachment_block: ["div.attach", "li.attachment"]
+  attachment_name: ["span.filename", "a.file"]
+  attachment_size: ["span.size"]

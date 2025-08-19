@@ -208,3 +208,9 @@ __marimo__/
 
 # Chrome Driver
 chromdriver.exe
+
+data/
+*.jaonl
+quarantine/
+crawler/out/
+playwright-report/
