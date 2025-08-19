@@ -261,6 +261,14 @@ def main():
     n = pipeline(args.input, args.out)
     print(f"[+] Wrote {n} records to {args.out}")
 
+def run_osint(input_dir: str, out_path: str):
+    """
+    입력 폴더의 파일들을 처리해 JSONL로 저장.
+    반환: {"count": N, "out": out_path}
+    """
+    n = pipeline(input_dir, out_path)
+    return {"count": n, "out": out_path}
+
 
 if __name__ == "__main__":
     main()
